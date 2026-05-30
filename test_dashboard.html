@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>购物订单数据看板</title>
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: #0f1923;
+            color: #e0e6ed;
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .header {
+            text-align: center;
+            padding: 20px 0 30px;
+        }
+        .header h1 {
+            font-size: 28px;
+            background: linear-gradient(135deg, #00d4ff, #7c3aed);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 8px;
+        }
+        .header p { color: #8892a4; font-size: 14px; }
+
+        /* 顶部统计卡片 */
+        .stat-cards {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+        .stat-card {
+            background: linear-gradient(135deg, rgba(255,255,255,0.05), rgba(255,255,255,0.02));
+            border: 1px solid rgba(255,255,255,0.08);
+            border-radius: 12px;
+            padding: 20px;
+            text-align: center;
+            transition: transform 0.3s, border-color 0.3s;
+        }
+        .stat-card:hover {
+            transform: translateY(-2px);
+            border-color: rgba(0, 212, 255, 0.3);
+        }
+        .stat-card .label { font-size: 13px; color: #8892a4; margin-bottom: 8px; }
+        .stat-card .value { font-size: 28px; font-weight: 700; }
+        .stat-card .value.blue { color: #00d4ff; }
+        .stat-card .value.green { color: #00e676; }
+        .stat-card .value.red { color: #ff5252; }
+        .stat-card .value.purple { color: #b388ff; }
+        .stat-card .value.orange { color: #ffab40; }
+
+        /* 图表区域 */
+        .charts-grid {
+            display: grid;
+            grid-template-columns: 2fr 1fr;
+            gap: 16px;
+            margin-bottom: 16px;
+        }
+        .chart-box {
+            background: linear-gradient(135deg, rgba(255,255,255,0.05), rgba(255,255,255,0.02));
+            border: 1px solid rgba(255,255,255,0.08);
+            border-radius: 12px;
+            padding: 20px;
+        }
+        .chart-box h3 {
+            font-size: 15px;
+            color: #c0c8d4;
+            margin-bottom: 12px;
+            padding-left: 10px;
+            border-left: 3px solid #00d4ff;
+        }
+        .chart-container { width: 100%; height: 350px; }
+
+        .charts-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+            margin-bottom: 16px;
+        }
+
+        /* 数据表格 */
+        .table-box {
+            background: linear-gradient(135deg, rgba(255,255,255,0.05), rgba(255,255,255,0.02));
+            border: 1px solid rgba(255,255,255,0.08);
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 16px;
+        }
+        .table-box h3 {
+            font-size: 15px; color: #c0c8d4;
+            margin-bottom: 12px; padding-left: 10px;
+            border-left: 3px solid #b388ff;
+        }
+        table { width: 100%; border-collapse: collapse; }
+        th {
+            background: rgba(0,212,255,0.1);
+            color: #00d4ff;
+            padding: 10px 12px;
+            text-align: left;
+            font-size: 13px;
+            font-weight: 600;
+        }
+        td {
+            padding: 10px 12px;
+            border-bottom: 1px solid rgba(255,255,255,0.05);
+            font-size: 13px;
+        }
+        tr:hover td { background: rgba(0,212,255,0.03); }
+        .refund { color: #ff5252; }
+        .completed { color: #00e676; }
+
+        @media (max-width: 768px) {
+            .charts-grid, .charts-row { grid-template-columns: 1fr; }
+            .stat-cards { grid-template-columns: repeat(2, 1fr); }
+        }
+    </style>
+</head>
+<body>
+
+<div class="header">
+    <h1>🛒 购物订单数据看板</h1>
+    <p>数据时间范围: 2025/02 - 2026/05</p>
+</div>
+
+<!-- 统计卡片 -->
+<div class="stat-cards">
+    <div class="stat-card">
+        <div class="label">总订单数</div>
+        <div class="value blue">146</div>
+    </div>
+    <div class="stat-card">
+        <div class="label">已完成金额</div>
+        <div class="value green">¥31,352</div>
+    </div>
+    <div class="stat-card">
+        <div class="label">退款金额</div>
+        <div class="value red">¥-566</div>
+    </div>
+    <div class="stat-card">
+        <div class="label">实际净消费</div>
+        <div class="value purple">¥30,786</div>
+    </div>
+    <div class="stat-card">
+        <div class="label">亲友卡消费</div>
+        <div class="value orange">¥10,294</div>
+    </div>
+</div>
+
+<!-- 月度趋势 + 订单状态饼图 -->
+<div class="charts-grid">
+    <div class="chart-box">
+        <h3>月度消费趋势</h3>
+        <div id="trendChart" class="chart-container"></div>
+    </div>
+    <div class="chart-box">
+        <h3>订单状态分布</h3>
+        <div id="statusChart" class="chart-container"></div>
+    </div>
+</div>
+
+<!-- 消费区间 + 星期偏好 -->
+<div class="charts-row">
+    <div class="chart-box">
+        <h3>月度订单数量 & 平均单价</h3>
+        <div id="barChart" class="chart-container"></div>
+    </div>
+    <div class="chart-box">
+        <h3>消费金额占比（按月）</h3>
+        <div id="pieChart" class="chart-container"></div>
+    </div>
+</div>
+
+<!-- 月度明细表格 -->
+<div class="table-box">
+    <h3>月度明细</h3>
+    <table>
+        <thead>
+            <tr>
+                <th>月份</th>
+                <th>订单数</th>
+                <th>已完成</th>
+                <th>已退款</th>
+                <th>已完成金额</th>
+                <th>退款金额</th>
+                <th>净消费</th>
+            </tr>
+        </thead>
+        <tbody id="tableBody"></tbody>
+    </table>
+</div>
+
+<script>
+const monthlyData = [
+    { month: '2025/02', count: 5, completed: 5, refund: 0, completedAmount: 453, refundAmount: 0, netAmount: 453 },
+    { month: '2025/03', count: 12, completed: 12, refund: 0, completedAmount: 2058, refundAmount: 0, netAmount: 2058 },
+    { month: '2025/04', count: 5, completed: 5, refund: 0, completedAmount: 873, refundAmount: 0, netAmount: 873 },
+    { month: '2025/05', count: 7, completed: 7, refund: 0, completedAmount: 653, refundAmount: 0, netAmount: 653 },
+    { month: '2025/06', count: 4, completed: 4, refund: 0, completedAmount: 840, refundAmount: 0, netAmount: 840 },
+    { month: '2025/07', count: 7, completed: 7, refund: 0, completedAmount: 3849, refundAmount: 0, netAmount: 3849 },
+    { month: '2025/08', count: 10, completed: 10, refund: 0, completedAmount: 2173, refundAmount: 0, netAmount: 2173 },
+    { month: '2025/09', count: 9, completed: 9, refund: 0, completedAmount: 1794, refundAmount: 0, netAmount: 1794 },
+    { month: '2025/10', count: 8, completed: 8, refund: 0, completedAmount: 1340, refundAmount: 0, netAmount: 1340 },
+    { month: '2025/11', count: 12, completed: 10, refund: 2, completedAmount: 5122, refundAmount: -320, netAmount: 4802 },
+    { month: '2025/12', count: 8, completed: 8, refund: 0, completedAmount: 1577, refundAmount: 0, netAmount: 1577 },
+    { month: '2026/01', count: 13, completed: 12, refund: 1, completedAmount: 2789, refundAmount: -89, netAmount: 2700 },
+    { month: '2026/02', count: 12, completed: 12, refund: 0, completedAmount: 2784, refundAmount: 0, netAmount: 2784 },
+    { month: '2026/03', count: 14, completed: 13, refund: 1, completedAmount: 2370, refundAmount: -157, netAmount: 2213 },
+    { month: '2026/04', count: 11, completed: 11, refund: 0, completedAmount: 1231, refundAmount: 0, netAmount: 1231 },
+    { month: '2026/05', count: 9, completed: 9, refund: 0, completedAmount: 879, refundAmount: 0, netAmount: 879 },
+];
+
+const months = monthlyData.map(d => d.month);
+const netAmounts = monthlyData.map(d => d.netAmount);
+const completedAmounts = monthlyData.map(d => d.completedAmount);
+const refundAmounts = monthlyData.map(d => d.refundAmount);
+const counts = monthlyData.map(d => d.count);
+const avgPrices = monthlyData.map(d => d.count > 0 ? Math.round(d.completedAmount / d.completed) : 0);
+
+// ============ 1. 月度消费趋势（面积图） ============
+const trendChart = echarts.init(document.getElementById('trendChart'));
+trendChart.setOption({
+    tooltip: {
+        trigger: 'axis',
+        backgroundColor: 'rgba(15,25,35,0.9)',
+        borderColor: 'rgba(0,212,255,0.3)',
+        textStyle: { color: '#e0e6ed' },
+        formatter: function(params) {
+            let s = '<b>' + params[0].axisValue + '</b><br/>';
+            params.forEach(p => {
+                s += p.marker + ' ' + p.seriesName + ': ¥' + p.value.toLocaleString() + '<br/>';
+            });
+            return s;
+        }
+    },
+    legend: { data: ['已完成金额', '净消费', '退款金额'], textStyle: { color: '#8892a4' }, top: 0 },
+    grid: { left: 60, right: 20, bottom: 30, top: 40 },
+    xAxis: {
+        type: 'category', data: months, boundaryGap: false,
+        axisLine: { lineStyle: { color: 'rgba(255,255,255,0.1)' } },
+        axisLabel: { color: '#8892a4', fontSize: 11 }
+    },
+    yAxis: {
+        type: 'value',
+        axisLine: { show: false },
+        splitLine: { lineStyle: { color: 'rgba(255,255,255,0.05)' } },
+        axisLabel: { color: '#8892a4', formatter: '¥{value}' }
+    },
+    series: [
+        {
+            name: '已完成金额', type: 'line', smooth: true,
+            data: completedAmounts,
+            lineStyle: { color: '#00e676', width: 2 },
+            itemStyle: { color: '#00e676' },
+            areaStyle: { color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+                { offset: 0, color: 'rgba(0,230,118,0.3)' },
+                { offset: 1, color: 'rgba(0,230,118,0)' }
+            ])}
+        },
+        {
+            name: '净消费', type: 'line', smooth: true,
+            data: netAmounts,
+            lineStyle: { color: '#00d4ff', width: 2 },
+            itemStyle: { color: '#00d4ff' },
+            areaStyle: { color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+                { offset: 0, color: 'rgba(0,212,255,0.25)' },
+                { offset: 1, color: 'rgba(0,212,255,0)' }
+            ])}
+        },
+        {
+            name: '退款金额', type: 'line', smooth: true,
+            data: refundAmounts,
+            lineStyle: { color: '#ff5252', width: 2, type: 'dashed' },
+            itemStyle: { color: '#ff5252' },
+        }
+    ]
+});
+
+// ============ 2. 订单状态饼图 ============
+const statusChart = echarts.init(document.getElementById('statusChart'));
+statusChart.setOption({
+    tooltip: {
+        trigger: 'item',
+        backgroundColor: 'rgba(15,25,35,0.9)',
+        borderColor: 'rgba(0,212,255,0.3)',
+        textStyle: { color: '#e0e6ed' },
+        formatter: '{b}: {c}笔 ({d}%)'
+    },
+    series: [{
+        type: 'pie', radius: ['45%', '70%'],
+        center: ['50%', '55%'],
+        label: { color: '#c0c8d4', fontSize: 12 },
+        labelLine: { lineStyle: { color: 'rgba(255,255,255,0.2)' } },
+        data: [
+            { value: 139, name: '已完成', itemStyle: { color: '#00e676' } },
+            { value: 7, name: '已退款', itemStyle: { color: '#ff5252' } },
+        ],
+        emphasis: {
+            itemStyle: { shadowBlur: 20, shadowColor: 'rgba(0,0,0,0.5)' }
+        }
+    }]
+});
+
+// ============ 3. 订单数量 & 平均单价（双轴柱状图） ============
+const barChart = echarts.init(document.getElementById('barChart'));
+barChart.setOption({
+    tooltip: {
+        trigger: 'axis',
+        backgroundColor: 'rgba(15,25,35,0.9)',
+        borderColor: 'rgba(0,212,255,0.3)',
+        textStyle: { color: '#e0e6ed' }
+    },
+    legend: { data: ['订单数', '平均单价'], textStyle: { color: '#8892a4' }, top: 0 },
+    grid: { left: 50, right: 50, bottom: 30, top: 40 },
+    xAxis: {
+        type: 'category', data: months,
+        axisLine: { lineStyle: { color: 'rgba(255,255,255,0.1)' } },
+        axisLabel: { color: '#8892a4', fontSize: 11 }
+    },
+    yAxis: [
+        {
+            type: 'value', name: '订单数',
+            axisLine: { show: false }, nameTextStyle: { color: '#8892a4' },
+            splitLine: { lineStyle: { color: 'rgba(255,255,255,0.05)' } },
+            axisLabel: { color: '#8892a4' }
+        },
+        {
+            type: 'value', name: '平均单价(¥)',
+            axisLine: { show: false }, nameTextStyle: { color: '#8892a4' },
+            splitLine: { show: false },
+            axisLabel: { color: '#8892a4', formatter: '¥{value}' }
+        }
+    ],
+    series: [
+        {
+            name: '订单数', type: 'bar', yAxisIndex: 0,
+            data: counts,
+            itemStyle: {
+                color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+                    { offset: 0, color: '#00d4ff' },
+                    { offset: 1, color: 'rgba(0,212,255,0.3)' }
+                ]),
+                borderRadius: [4, 4, 0, 0]
+            },
+            barWidth: '40%'
+        },
+        {
+            name: '平均单价', type: 'line', yAxisIndex: 1,
+            data: avgPrices, smooth: true,
+            lineStyle: { color: '#ffab40', width: 2 },
+            itemStyle: { color: '#ffab40' },
+            symbol: 'circle', symbolSize: 6
+        }
+    ]
+});
+
+// ============ 4. 消费金额占比（玫瑰图） ============
+const pieChart = echarts.init(document.getElementById('pieChart'));
+pieChart.setOption({
+    tooltip: {
+        trigger: 'item',
+        backgroundColor: 'rgba(15,25,35,0.9)',
+        borderColor: 'rgba(0,212,255,0.3)',
+        textStyle: { color: '#e0e6ed' },
+        formatter: '{b}<br/>¥{c} ({d}%)'
+    },
+    series: [{
+        type: 'pie', radius: ['20%', '65%'],
+        center: ['50%', '55%'],
+        roseType: 'area',
+        label: { color: '#c0c8d4', fontSize: 11 },
+        labelLine: { lineStyle: { color: 'rgba(255,255,255,0.15)' } },
+        data: monthlyData.map((d, i) => ({
+            value: d.netAmount, name: d.month,
+            itemStyle: {
+                color: 'hsl(' + (190 + i * 10) + ', 80%, ' + (55 + i) + '%)'
+            }
+        })),
+        emphasis: {
+            itemStyle: { shadowBlur: 20, shadowColor: 'rgba(0,0,0,0.5)' }
+        }
+    }]
+});
+
+// ============ 5. 表格填充 ============
+const tbody = document.getElementById('tableBody');
+monthlyData.forEach(d => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = 
+        '<td>' + d.month + '</td>' +
+        '<td>' + d.count + '</td>' +
+        '<td class="completed">' + d.completed + '</td>' +
+        '<td class="' + (d.refund > 0 ? 'refund' : '') + '">' + (d.refund || '-') + '</td>' +
+        '<td>¥' + d.completedAmount.toLocaleString() + '</td>' +
+        '<td class="' + (d.refundAmount < 0 ? 'refund' : '') + '">' + (d.refundAmount < 0 ? '¥' + d.refundAmount.toLocaleString() : '-') + '</td>' +
+        '<td style="color:#00d4ff;font-weight:600">¥' + d.netAmount.toLocaleString() + '</td>';
+    tbody.appendChild(tr);
+});
+
+// ============ 自适应 ============
+window.addEventListener('resize', () => {
+    trendChart.resize();
+    statusChart.resize();
+    barChart.resize();
+    pieChart.resize();
+});
+</script>
+
+</body></html>

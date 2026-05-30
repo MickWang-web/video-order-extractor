@@ -1,0 +1,47 @@
+
+# 虚拟环境
+.venv/
+venv/
+env/
+
+# 日志文件
+*.log
+logs/
+
+# 数据文件
+*.db
+*.sqlite
+*.sqlite3
+
+# 临时文件
+*.tmp
+*.temp
+.cache/
+
+# 上传/下载目录
+uploads/
+frames/
+download/
+
+# 环境变量
+.env
+.env.local
+.env.*.local
+
+# IDE配置
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Python编译文件
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# 操作系统文件
+.DS_Store
+Thumbs.db
