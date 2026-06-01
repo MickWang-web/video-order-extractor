@@ -4,13 +4,16 @@
 import sys
 import os
 import json
+import re
+import time
 from datetime import datetime, timedelta
+from collections import defaultdict
 from PyQt5.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QPushButton, QLineEdit, QLabel, QFileDialog, QProgressBar,
     QTableWidget, QTableWidgetItem, QComboBox, QCheckBox,
     QSplitter, QGroupBox, QTabWidget, QHeaderView, QScrollArea,
-    QSizePolicy
+    QSizePolicy, QMenu, QMessageBox, QButtonGroup, QRadioButton
 )
 from PyQt5.QtCore import Qt, QThread, pyqtSignal, QRect, QMargins
 from PyQt5.QtGui import QDoubleValidator, QPalette, QColor, QPainter, QLinearGradient, QBrush, QPen, QFont
@@ -19,9 +22,11 @@ from PyQt5.QtChart import (
     QPieSeries, QPieSlice, QValueAxis, QBarCategoryAxis, QCategoryAxis
 )
 
-# 导入视频处理模块
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from video_processor import process_video
+from video_processor import process_video, get_vision_client, image_to_base64
+from config import VISION_MODEL
+from app.utils.database import init_db, get_session, close_engine
+from app.services.import_service import ImportService
 
 
 class ProcessingThread(QThread):
@@ -44,6 +49,233 @@ class ProcessingThread(QThread):
             
             result = process_video(self.video_path, self.fps)
             self.finished.emit(result)
+        except Exception as e:
+            self.error.emit(str(e))
+
+
+ORDER_LIST_PROMPT = """你是一个专业的订单信息提取助手。请仔细观察这张手机截图，这是购物App的"我的订单"列表页面。
+
+请提取页面中每一条订单的以下信息，以JSON数组格式返回：
+- order_id: 订单编号（完整数字串）
+- status: 订单状态（如"已完成"、"已退款"等）
+- datetime: 下单时间/交易时间（格式 YYYY/MM/DD HH:MM:SS）
+- amount: 金额（数字，退款为负数）
+- location: 交易地点/卖场（如"深圳"，没有则为空字符串）
+- tags: 标签（如"亲友卡"，没有则为空字符串）
+
+注意事项：
+1. 只返回页面上能清晰看到的订单
+2. 金额要去掉¥符号，只保留数字
+3. 退款订单金额为负数
+4. 订单编号尽量提取完整
+5. 只返回JSON，不要其他文字
+
+返回格式示例：
+```json
+[
+  {"order_id": "557100000000060717202605242120", "status": "已完成", "datetime": "2026/05/24 21:19:36", "amount": 52.80, "location": "深圳", "tags": "亲友卡"},
+  {"order_id": "557100000008300049202605112104", "status": "已退款", "datetime": "2026/05/11 21:06:17", "amount": -145.90, "location": "深圳", "tags": ""}
+]
+```
+"""
+
+
+ORDER_DETAIL_PROMPT = """你是一个专业的订单信息提取助手。请仔细观察这张手机截图，这是购物App的"订单详情"页面。
+
+请提取该订单的完整信息，包括订单基本信息和商品明细列表，以JSON格式返回：
+
+订单基本信息：
+- order_id: 订单编号（完整数字串）
+- status: 订单状态（如"已完成"、"已退款"等）
+- datetime: 交易时间（格式 YYYY/MM/DD HH:MM:SS）
+- amount: 订单金额（数字）
+- location: 交易地点/卖场（如"深圳"）
+- member_card: 会员卡号（没有则为空字符串）
+- subtotal: 商品总计（数字）
+- discount: 促销折扣（数字，没有则为0）
+- rebate: 消费返利（数字，没有则为0）
+- tax_excluded: 未税价格（数字，没有则为空或0）
+- actual_pay: 实际支付金额（数字）
+
+商品明细列表 products：
+每个商品包含：
+- product_name: 商品名称
+- quantity: 数量（整数）
+- unit_price: 单价
+- spec: 规格描述（如"330ml*30"、"大份"等，没有则为空字符串）
+- subtotal: 该商品小计金额
+
+注意事项：
+1. 金额要去掉¥符号，只保留数字
+2. 退款订单金额为负数
+3. 商品明细尽量全部提取，不要遗漏
+4. 规格包括容量、包装方式、口味等信息
+5. 只返回JSON，不要其他文字
+
+返回格式示例：
+```json
+{
+  "order_id": "557100000000060717202605242120",
+  "status": "已完成",
+  "datetime": "2026/05/24 21:19:36",
+  "amount": 52.80,
+  "location": "深圳",
+  "member_card": "5311******4410",
+  "subtotal": 50.00,
+  "discount": 0,
+  "rebate": 0,
+  "tax_excluded": 0,
+  "actual_pay": 52.80,
+  "products": [
+    {"product_name": "鲜牛奶", "quantity": 2, "unit_price": 25.00, "spec": "1L装", "subtotal": 50.00}
+  ]
+}
+```
+"""
+
+
+def _parse_json_from_text(text):
+    """从模型返回文本中解析JSON"""
+    json_match = re.search(r'```(?:json)?\s*([\s\S]*?)```', text)
+    if json_match:
+        json_str = json_match.group(1).strip()
+    else:
+        json_str = text.strip()
+
+    try:
+        return json.loads(json_str)
+    except json.JSONDecodeError:
+        pass
+
+    bracket_match = re.search(r'\[[\s\S]*\]', text)
+    if bracket_match:
+        try:
+            result = json.loads(bracket_match.group())
+            if isinstance(result, list):
+                return result
+        except json.JSONDecodeError:
+            pass
+
+    brace_match = re.search(r'\{[\s\S]*\}', text)
+    if brace_match:
+        try:
+            result = json.loads(brace_match.group())
+            if isinstance(result, dict):
+                return result
+        except json.JSONDecodeError:
+            pass
+
+    return None
+
+
+def _recognize_order_list_screenshot(image_path):
+    """识别订单列表截图，返回多条订单"""
+    client = get_vision_client()
+    b64 = image_to_base64(image_path)
+
+    response = client.chat.completions.create(
+        model=VISION_MODEL,
+        messages=[{
+            "role": "user",
+            "content": [
+                {"type": "text", "text": ORDER_LIST_PROMPT},
+                {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{b64}"}}
+            ]
+        }],
+        max_tokens=2000,
+        temperature=0.1
+    )
+
+    text = response.choices[0].message.content
+    result = _parse_json_from_text(text)
+
+    if isinstance(result, list):
+        return result
+    elif isinstance(result, dict):
+        return [result]
+    else:
+        print(f"[截屏识别] 无法解析为订单列表: {text[:200]}")
+        return []
+
+
+def _recognize_order_detail_screenshot(image_path):
+    """识别订单详情截图，返回单条订单（含商品明细）"""
+    client = get_vision_client()
+    b64 = image_to_base64(image_path)
+
+    response = client.chat.completions.create(
+        model=VISION_MODEL,
+        messages=[{
+            "role": "user",
+            "content": [
+                {"type": "text", "text": ORDER_DETAIL_PROMPT},
+                {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{b64}"}}
+            ]
+        }],
+        max_tokens=3000,
+        temperature=0.1
+    )
+
+    text = response.choices[0].message.content
+    result = _parse_json_from_text(text)
+
+    if isinstance(result, dict):
+        return result
+    elif isinstance(result, list) and len(result) > 0:
+        return result[0]
+    else:
+        print(f"[截屏识别] 无法解析为订单详情: {text[:200]}")
+        return None
+
+
+def _process_screenshots(image_paths, mode="order_list"):
+    """批量处理截图"""
+    all_orders = []
+
+    for i, image_path in enumerate(image_paths):
+        filename = os.path.basename(image_path)
+        print(f"正在识别第 {i+1}/{len(image_paths)} 张截图: {filename}")
+
+        if mode == "order_detail":
+            result = _recognize_order_detail_screenshot(image_path)
+            if result:
+                all_orders.append(result)
+                product_count = len(result.get("products", []))
+                print(f"  识别到 1 条订单（包含 {product_count} 个商品）")
+            else:
+                print(f"  未识别到订单")
+        else:
+            orders = _recognize_order_list_screenshot(image_path)
+            all_orders.extend(orders)
+            print(f"  识别到 {len(orders)} 条订单")
+
+        if (i + 1) % 3 == 0 and i + 1 < len(image_paths):
+            print("  等待1秒避免限流...")
+            time.sleep(1)
+
+    return all_orders
+
+
+class ScreenshotProcessThread(QThread):
+    """处理截屏的后台线程"""
+    progress = pyqtSignal(int, str)
+    finished = pyqtSignal(list)
+    error = pyqtSignal(str)
+
+    def __init__(self, image_paths, mode="order_list"):
+        super().__init__()
+        self.image_paths = image_paths
+        self.mode = mode
+
+    def run(self):
+        try:
+            total = len(self.image_paths)
+            self.progress.emit(10, f"开始识别 {total} 张截图...")
+
+            orders = _process_screenshots(self.image_paths, self.mode)
+
+            self.progress.emit(100, f"识别完成，共提取 {len(orders)} 条订单")
+            self.finished.emit(orders)
         except Exception as e:
             self.error.emit(str(e))
 
@@ -318,6 +550,8 @@ class SummaryWidget(QWidget):
 
 class OrdersTable(QTableWidget):
     """订单数据表格"""
+    delete_requested = pyqtSignal(str)
+
     def __init__(self):
         super().__init__()
         self.init_ui()
@@ -340,6 +574,32 @@ class OrdersTable(QTableWidget):
         self.setAlternatingRowColors(True)
         self.setSelectionBehavior(QTableWidget.SelectRows)
         self.verticalHeader().setVisible(False)
+        self.setContextMenuPolicy(Qt.CustomContextMenu)
+        self.customContextMenuRequested.connect(self.show_context_menu)
+
+    def show_context_menu(self, pos):
+        row = self.rowAt(pos.y())
+        if row < 0:
+            return
+        order_id = self.item(row, 1).text() if self.item(row, 1) else ""
+        menu = QMenu(self)
+        delete_action = menu.addAction("🗑 删除订单")
+        menu.setStyleSheet("""
+            QMenu {
+                background-color: #1a2633;
+                color: #e0e6ed;
+                border: 1px solid #3a4a5a;
+                padding: 4px;
+            }
+            QMenu::item {
+                padding: 6px 20px;
+            }
+            QMenu::item:selected {
+                background-color: #c0392b;
+            }
+        """)
+        delete_action.triggered.connect(lambda: self.delete_requested.emit(order_id))
+        menu.exec_(self.viewport().mapToGlobal(pos))
 
     def update_data(self, orders):
         self.setRowCount(0)
@@ -358,6 +618,62 @@ class OrdersTable(QTableWidget):
             self.setItem(row, 4, amount_item)
             
             self.setItem(row, 5, QTableWidgetItem(order.get('tags', '')))
+
+
+class ProductsTable(QTableWidget):
+    """商品明细表格"""
+    def __init__(self):
+        super().__init__()
+        self.init_ui()
+
+    def init_ui(self):
+        self.setColumnCount(7)
+        self.setHorizontalHeaderLabels(['序号', '商品名称', '规格', '单价(元)', '数量', '小计(元)', '所属订单'])
+        self.horizontalHeader().setSectionResizeMode(0, QHeaderView.Fixed)
+        self.horizontalHeader().setSectionResizeMode(1, QHeaderView.Stretch)
+        self.horizontalHeader().setSectionResizeMode(2, QHeaderView.Fixed)
+        self.horizontalHeader().setSectionResizeMode(3, QHeaderView.Fixed)
+        self.horizontalHeader().setSectionResizeMode(4, QHeaderView.Fixed)
+        self.horizontalHeader().setSectionResizeMode(5, QHeaderView.Fixed)
+        self.horizontalHeader().setSectionResizeMode(6, QHeaderView.Stretch)
+
+        self.setColumnWidth(0, 50)
+        self.setColumnWidth(2, 100)
+        self.setColumnWidth(3, 80)
+        self.setColumnWidth(4, 60)
+        self.setColumnWidth(5, 80)
+
+        self.setEditTriggers(QTableWidget.NoEditTriggers)
+        self.setAlternatingRowColors(True)
+        self.setSelectionBehavior(QTableWidget.SelectRows)
+        self.verticalHeader().setVisible(False)
+
+    def update_data(self, orders):
+        self.setRowCount(0)
+        row_idx = 0
+        for order in orders:
+            order_id = str(order.get('order_id', ''))
+            products = order.get('products', [])
+            if not products:
+                continue
+            for product in products:
+                row = self.rowCount()
+                self.insertRow(row)
+                row_idx += 1
+                self.setItem(row, 0, QTableWidgetItem(str(row_idx)))
+                self.setItem(row, 1, QTableWidgetItem(str(product.get('product_name', ''))))
+                self.setItem(row, 2, QTableWidgetItem(str(product.get('spec', ''))))
+
+                unit_price = product.get('unit_price', 0)
+                self.setItem(row, 3, QTableWidgetItem(f'{float(unit_price):.2f}'))
+
+                quantity = product.get('quantity', 0)
+                self.setItem(row, 4, QTableWidgetItem(str(quantity)))
+
+                subtotal = product.get('subtotal', 0)
+                self.setItem(row, 5, QTableWidgetItem(f'{float(subtotal):.2f}'))
+
+                self.setItem(row, 6, QTableWidgetItem(order_id))
 
 
 class DashboardView(QWidget):
@@ -979,6 +1295,9 @@ class MainWindow(QMainWindow):
         self.orders = []
         self.summary = None
         
+        init_db()
+        self._load_from_db()
+        
         self.init_ui()
 
     def init_ui(self):
@@ -1036,7 +1355,20 @@ class MainWindow(QMainWindow):
         import_btn_layout.addWidget(self.import_file_path, 1)
         import_btn_layout.addWidget(self.import_browse_btn)
         import_layout.addLayout(import_btn_layout)
-        
+
+        self.import_mode_group = QButtonGroup(self)
+        self.import_mode_incremental = QRadioButton("增量导入")
+        self.import_mode_incremental.setChecked(True)
+        self.import_mode_full = QRadioButton("全量刷新")
+        self.import_mode_group.addButton(self.import_mode_incremental)
+        self.import_mode_group.addButton(self.import_mode_full)
+        mode_layout = QHBoxLayout()
+        mode_layout.setSpacing(16)
+        mode_layout.addWidget(self.import_mode_incremental)
+        mode_layout.addWidget(self.import_mode_full)
+        mode_layout.addStretch()
+        import_layout.addLayout(mode_layout)
+
         self.import_btn = QPushButton("导入数据")
         self.import_btn.setMinimumHeight(35)
         self.import_btn.clicked.connect(self.import_data)
@@ -1044,6 +1376,43 @@ class MainWindow(QMainWindow):
         
         import_group.setLayout(import_layout)
         left_layout.addWidget(import_group)
+
+        # 截屏导入
+        screenshot_group = QGroupBox("截屏导入")
+        screenshot_layout = QVBoxLayout()
+        screenshot_layout.setSpacing(8)
+
+        screenshot_mode_layout = QHBoxLayout()
+        screenshot_mode_layout.setSpacing(8)
+        self.screenshot_list_radio = QCheckBox("订单列表截图")
+        self.screenshot_list_radio.setChecked(True)
+        self.screenshot_detail_radio = QCheckBox("订单详情截图")
+        screenshot_mode_layout.addWidget(self.screenshot_list_radio)
+        screenshot_mode_layout.addWidget(self.screenshot_detail_radio)
+        screenshot_layout.addLayout(screenshot_mode_layout)
+
+        self.screenshot_list_radio.stateChanged.connect(self._on_screenshot_mode_changed)
+        self.screenshot_detail_radio.stateChanged.connect(self._on_screenshot_mode_changed)
+
+        screenshot_file_layout = QHBoxLayout()
+        screenshot_file_layout.setSpacing(8)
+        self.screenshot_path = QLineEdit()
+        self.screenshot_path.setReadOnly(True)
+        self.screenshot_path.setMinimumWidth(150)
+        self.screenshot_browse_btn = QPushButton("选择截图")
+        self.screenshot_browse_btn.setMinimumWidth(80)
+        self.screenshot_browse_btn.clicked.connect(self.browse_screenshots)
+        screenshot_file_layout.addWidget(self.screenshot_path, 1)
+        screenshot_file_layout.addWidget(self.screenshot_browse_btn)
+        screenshot_layout.addLayout(screenshot_file_layout)
+
+        self.screenshot_btn = QPushButton("开始识别截图")
+        self.screenshot_btn.setMinimumHeight(35)
+        self.screenshot_btn.clicked.connect(self.start_screenshot_processing)
+        screenshot_layout.addWidget(self.screenshot_btn)
+
+        screenshot_group.setLayout(screenshot_layout)
+        left_layout.addWidget(screenshot_group)
 
         # 文件选择
         file_group = QGroupBox("视频文件")
@@ -1108,8 +1477,15 @@ class MainWindow(QMainWindow):
         table_tab = QWidget()
         table_layout = QVBoxLayout(table_tab)
         self.orders_table = OrdersTable()
+        self.orders_table.delete_requested.connect(self._on_delete_order)
         table_layout.addWidget(self.orders_table)
         
+        # 商品明细标签页
+        product_tab = QWidget()
+        product_layout = QVBoxLayout(product_tab)
+        self.products_table = ProductsTable()
+        product_layout.addWidget(self.products_table)
+
         # 图表标签页
         chart_tab = QWidget()
         chart_tab.setStyleSheet("background-color: #0f1923;")
@@ -1121,6 +1497,7 @@ class MainWindow(QMainWindow):
         # 标签页
         self.tab_widget = QTabWidget()
         self.tab_widget.addTab(table_tab, "📋 订单明细")
+        self.tab_widget.addTab(product_tab, "🛍️ 商品明细")
         self.tab_widget.addTab(chart_tab, "📊 数据分析")
         self.tab_widget.tabBar().setStyleSheet("""
             QTabBar::tab {
@@ -1172,6 +1549,71 @@ class MainWindow(QMainWindow):
         main_layout.addWidget(left_scroll)
         main_layout.addWidget(right_scroll, 1)
 
+        self.apply_filter()
+
+    def _load_from_db(self):
+        try:
+            session = get_session()
+            all_orders = ImportService.get_all_orders(session)
+            session.close()
+            for o in all_orders:
+                dt = o.get("datetime")
+                if isinstance(dt, datetime):
+                    o["datetime"] = dt.strftime("%Y/%m/%d %H:%M:%S")
+            self.orders = all_orders
+            if self.orders:
+                self.summary = self._calculate_summary(self.orders)
+        except Exception as e:
+            print(f"[DB] 加载数据失败: {e}")
+            self.orders = []
+            self.summary = None
+
+    def _persist_orders(self, orders, source_type, source_name, mode="incremental"):
+        try:
+            session = get_session()
+            orders_copy = []
+            for o in orders:
+                order_copy = dict(o)
+                dt_str = order_copy.get("datetime", "")
+                if dt_str:
+                    parsed = self._parse_date(dt_str)
+                    if parsed:
+                        order_copy["datetime"] = parsed
+                    else:
+                        order_copy["datetime"] = datetime.now()
+                        print(f"[持久化] 日期格式无法解析: {dt_str}，使用当前时间")
+                else:
+                    order_copy["datetime"] = datetime.now()
+                    print(f"[持久化] 订单缺少日期字段，使用当前时间")
+                orders_copy.append(order_copy)
+
+            if mode == "full_refresh":
+                result = ImportService.import_orders_full_refresh(session, orders_copy, source_type, source_name)
+            else:
+                result = ImportService.import_orders(session, orders_copy, source_type, source_name)
+            session.commit()
+            session.close()
+
+            self._load_from_db()
+            self.apply_filter()
+            if mode == "full_refresh":
+                status_msg = f"全量刷新完成: 导入 {result['new_records']} 条"
+            else:
+                status_msg = f"导入完成: 新增 {result['new_records']} 条, 更新 {result['update_records']} 条"
+            if result["failed_records"] > 0:
+                status_msg += f", 失败 {result['failed_records']} 条"
+            self.status_label.setText(status_msg)
+        except Exception as e:
+            import traceback
+            session.rollback()
+            session.close()
+            self.status_label.setText(f"保存数据失败: {str(e)}")
+            traceback.print_exc()
+
+    def closeEvent(self, event):
+        close_engine()
+        super().closeEvent(event)
+
     def browse_file(self):
         file_path, _ = QFileDialog.getOpenFileName(
             self, "选择视频文件", "", 
@@ -1196,11 +1638,22 @@ class MainWindow(QMainWindow):
             self.status_label.setText("请先选择数据文件")
             return
 
+        mode = "full_refresh" if self.import_mode_full.isChecked() else "incremental"
+
+        if mode == "full_refresh":
+            reply = QMessageBox.warning(
+                self, "确认全量刷新",
+                "全量刷新将删除所有现有订单数据，此操作不可撤销。\n\n确定要清除所有数据并重新导入吗？",
+                QMessageBox.Yes | QMessageBox.No, QMessageBox.No
+            )
+            if reply != QMessageBox.Yes:
+                return
+
         try:
             if import_file.endswith('.json'):
-                self._import_json(import_file)
+                self._import_json(import_file, mode)
             elif import_file.endswith(('.xlsx', '.xls')):
-                self._import_excel(import_file)
+                self._import_excel(import_file, mode)
             else:
                 self.status_label.setText("不支持的文件格式")
         except Exception as e:
@@ -1208,7 +1661,7 @@ class MainWindow(QMainWindow):
             self.status_label.setText(f"导入失败: {str(e)}")
             traceback.print_exc()
 
-    def _import_json(self, file_path):
+    def _import_json(self, file_path, mode="incremental"):
         with open(file_path, 'r', encoding='utf-8') as f:
             data = json.load(f)
         
@@ -1216,12 +1669,64 @@ class MainWindow(QMainWindow):
             data = data['data']
         
         orders = data.get('orders', [])
-        summary = {k: v for k, v in data.items() if k != 'orders'}
-        
-        self._load_data(orders, summary)
-        self.status_label.setText(f"成功导入 {len(orders)} 条订单")
+        source_name = os.path.basename(file_path)
+        self._persist_orders(orders, "file", source_name, mode)
 
-    def _import_excel(self, file_path):
+    def browse_screenshots(self):
+        file_paths, _ = QFileDialog.getOpenFileNames(
+            self, "选择截图", "",
+            "图片文件 (*.png *.jpg *.jpeg *.bmp *.webp);;所有文件 (*)"
+        )
+        if file_paths:
+            display = f"已选择 {len(file_paths)} 张截图"
+            self.screenshot_path.setText(display)
+            self.screenshot_path.setProperty("selected_images", file_paths)
+
+    def _on_screenshot_mode_changed(self, state):
+        if self.sender() == self.screenshot_list_radio and state:
+            self.screenshot_detail_radio.setChecked(False)
+        elif self.sender() == self.screenshot_detail_radio and state:
+            self.screenshot_list_radio.setChecked(False)
+
+    def start_screenshot_processing(self):
+        selected = self.screenshot_path.property("selected_images")
+        if not selected:
+            self.status_label.setText("请先选择截图文件")
+            return
+
+        if self.screenshot_list_radio.isChecked():
+            mode = "order_list"
+        else:
+            mode = "order_detail"
+
+        self.screenshot_btn.setEnabled(False)
+        self.screenshot_browse_btn.setEnabled(False)
+        self.progress_bar.setValue(0)
+        self.status_label.setText("正在识别截图...")
+
+        self.screenshot_thread = ScreenshotProcessThread(selected, mode)
+        self.screenshot_thread.progress.connect(self.update_progress)
+        self.screenshot_thread.finished.connect(self.on_screenshot_finished)
+        self.screenshot_thread.error.connect(self.on_screenshot_error)
+        self.screenshot_thread.start()
+
+    def on_screenshot_finished(self, orders):
+        if not orders:
+            self.status_label.setText("截屏识别未提取到订单，请检查截图内容")
+        else:
+            source_name = f"screenshot_{len(orders)}_orders"
+            self._persist_orders(orders, "screenshot", source_name)
+            self.status_label.setText(f"截屏识别完成！共提取 {len(orders)} 条订单")
+
+        self.screenshot_btn.setEnabled(True)
+        self.screenshot_browse_btn.setEnabled(True)
+
+    def on_screenshot_error(self, error_msg):
+        self.status_label.setText(f"截屏识别错误: {error_msg}")
+        self.screenshot_btn.setEnabled(True)
+        self.screenshot_browse_btn.setEnabled(True)
+
+    def _import_excel(self, file_path, mode="incremental"):
         import openpyxl
         
         wb = openpyxl.load_workbook(file_path)
@@ -1243,9 +1748,8 @@ class MainWindow(QMainWindow):
             except (ValueError, TypeError):
                 continue
         
-        summary = self._calculate_summary(orders)
-        self._load_data(orders, summary)
-        self.status_label.setText(f"成功导入 {len(orders)} 条订单")
+        source_name = os.path.basename(file_path)
+        self._persist_orders(orders, "file", source_name, mode)
 
     def _calculate_summary(self, orders):
         from collections import defaultdict
@@ -1334,19 +1838,16 @@ class MainWindow(QMainWindow):
 
     def on_process_finished(self, result):
         if result.get('success'):
-            self.orders = result['data'].get('orders', [])
-            self.summary = result['data']
-            
-            # 更新界面
-            self.summary_widget.update_summary(self.summary)
-            self.dashboard_view.update_dashboard(self.summary)
-            self.apply_filter()
-            
-            self.status_label.setText(f"处理完成！共提取 {len(self.orders)} 条订单")
+            orders = result['data'].get('orders', [])
+
+            video_path = self.file_path.text()
+            source_name = os.path.basename(video_path) if video_path else "unknown"
+            self._persist_orders(orders, "video", source_name)
+
+            self.status_label.setText(f"处理完成！共提取 {len(orders)} 条订单")
         else:
             self.status_label.setText(f"处理失败: {result.get('error', '未知错误')}")
 
-        # 启用按钮
         self.process_btn.setEnabled(True)
         self.browse_btn.setEnabled(True)
 
@@ -1355,10 +1856,36 @@ class MainWindow(QMainWindow):
         self.process_btn.setEnabled(True)
         self.browse_btn.setEnabled(True)
 
+    def _on_delete_order(self, order_id):
+        reply = QMessageBox.question(
+            self, "确认删除",
+            f"确定删除订单 {order_id}？\n此操作不可撤销。",
+            QMessageBox.Yes | QMessageBox.No, QMessageBox.No
+        )
+        if reply != QMessageBox.Yes:
+            return
+
+        try:
+            session = get_session()
+            success = ImportService.delete_order(session, order_id)
+            session.close()
+            if success:
+                self.orders = [o for o in self.orders if str(o.get('order_id')) != order_id]
+                self.apply_filter()
+                self.status_label.setText(f"已删除订单 {order_id}")
+            else:
+                self.orders = [o for o in self.orders if str(o.get('order_id')) != order_id]
+                self.apply_filter()
+                self.status_label.setText(f"订单 {order_id} 不在数据库中，已从列表移除")
+        except Exception as e:
+            self.status_label.setText(f"删除失败: {e}")
+            import traceback
+            traceback.print_exc()
+
     def apply_filter(self):
         if not self.orders:
-            # 清空表格
             self.orders_table.update_data([])
+            self.products_table.update_data([])
             return
 
         filter_params = self.filter_widget.get_filter()
@@ -1401,6 +1928,7 @@ class MainWindow(QMainWindow):
 
         # 更新表格
         self.orders_table.update_data(filtered)
+        self.products_table.update_data(filtered)
         
         # 计算过滤后数据的统计信息
         filtered_summary = self._calculate_summary(filtered)

@@ -20,6 +20,10 @@ UPLOAD_DIR = os.path.join(os.path.dirname(__file__), "uploads")
 FRAMES_DIR = os.path.join(os.path.dirname(__file__), "frames")
 OUTPUT_DIR = os.path.join(os.path.dirname(__file__), "download")
 
+# 数据库路径
+DATA_DIR = os.path.join(os.path.dirname(__file__), "data")
+DB_PATH = os.path.join(DATA_DIR, "orders.db")
+
 # 确保目录存在
-for d in [UPLOAD_DIR, FRAMES_DIR, OUTPUT_DIR]:
+for d in [UPLOAD_DIR, FRAMES_DIR, OUTPUT_DIR, DATA_DIR]:
     os.makedirs(d, exist_ok=True)
