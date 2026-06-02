@@ -1,5 +1,5 @@
 """
-视频订单提取 - 图形界面应用
+订单分析系统 - 图形界面应用
 """
 import sys
 import os
@@ -23,10 +23,10 @@ from PyQt5.QtChart import (
 )
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from video_processor import process_video, get_vision_client, image_to_base64
-from config import VISION_MODEL
-from app.utils.database import init_db, get_session, close_engine
-from app.services.import_service import ImportService
+from src.video import process_video, get_vision_client, image_to_base64
+from src.core.config import VISION_MODEL
+from src.database import init_db, get_session, close_engine
+from src.services.import_service import ImportService
 
 
 class ProcessingThread(QThread):
@@ -286,6 +286,79 @@ class OrderFilterWidget(QWidget):
 
     def __init__(self):
         super().__init__()
+        self.setStyleSheet("""
+            QWidget {
+                background-color: #1a2633;
+                color: #e0e6ed;
+            }
+            QGroupBox {
+                background-color: #0f1923;
+                color: #e0e6ed;
+                border: 1px solid #3a4a5a;
+                border-radius: 8px;
+                margin-top: 10px;
+                padding: 8px 4px 4px 4px;
+                font-weight: bold;
+            }
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                subcontrol-position: top left;
+                left: 10px;
+                padding: 0 4px;
+                color: #00d4ff;
+            }
+            QCheckBox {
+                color: #e0e6ed;
+                spacing: 6px;
+            }
+            QCheckBox::indicator {
+                width: 16px;
+                height: 16px;
+                border: 1px solid #3a4a5a;
+                border-radius: 3px;
+                background-color: #0f1923;
+            }
+            QCheckBox::indicator:checked {
+                background-color: #00d4ff;
+                border-color: #00d4ff;
+            }
+            QCheckBox::indicator:hover {
+                border-color: #00d4ff;
+            }
+            QLineEdit {
+                background-color: #0f1923;
+                color: #e0e6ed;
+                border: 1px solid #3a4a5a;
+                border-radius: 4px;
+                padding: 4px 6px;
+                selection-background-color: #00d4ff;
+            }
+            QLineEdit:focus {
+                border: 1px solid #00d4ff;
+            }
+            QLineEditQLineEdit {
+                background-color: #0f1923;
+            }
+            QPushButton {
+                background-color: #0f1923;
+                color: #e0e6ed;
+                border: 1px solid #3a4a5a;
+                border-radius: 6px;
+                padding: 6px 12px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #2a3643;
+                border-color: #00d4ff;
+                color: #00d4ff;
+            }
+            QPushButton:pressed {
+                background-color: #3a4a5a;
+            }
+            QLabel {
+                color: #8892a4;
+            }
+        """)
         self.init_ui()
 
     def init_ui(self):
@@ -500,6 +573,32 @@ class SummaryWidget(QWidget):
     """汇总统计组件"""
     def __init__(self):
         super().__init__()
+        self.setStyleSheet("""
+            QWidget {
+                background-color: #1a2633;
+                color: #e0e6ed;
+            }
+            QGroupBox {
+                background-color: #0f1923;
+                color: #e0e6ed;
+                border: 1px solid #3a4a5a;
+                border-radius: 8px;
+                margin-top: 10px;
+                padding: 8px 4px 4px 4px;
+                font-weight: bold;
+            }
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                subcontrol-position: top left;
+                left: 10px;
+                padding: 0 4px;
+                color: #00d4ff;
+            }
+            QLabel {
+                color: #e0e6ed;
+                background-color: transparent;
+            }
+        """)
         self.init_ui()
 
     def init_ui(self):
@@ -554,6 +653,51 @@ class OrdersTable(QTableWidget):
 
     def __init__(self):
         super().__init__()
+        self.setStyleSheet("""
+            QTableWidget {
+                background-color: #0f1923;
+                color: #e0e6ed;
+                gridline-color: #3a4a5a;
+                border: none;
+            }
+            QTableWidget::item {
+                background-color: #0f1923;
+                color: #e0e6ed;
+                padding: 4px 8px;
+                border-bottom: 1px solid #3a4a5a;
+            }
+            QTableWidget::item:selected {
+                background-color: #2a3643;
+                color: #00d4ff;
+            }
+            QTableWidget::item:hover {
+                background-color: #1a2633;
+            }
+            QHeaderView::section {
+                background-color: #00d4ff;
+                color: #0f1923;
+                padding: 8px 12px;
+                font-weight: bold;
+                border: none;
+                border-bottom: 1px solid #0099cc;
+            }
+            QHeaderView::section:hover {
+                background-color: #00b8e6;
+            }
+            QTableWidget QScrollBar:vertical {
+                background-color: #1a2633;
+                width: 12px;
+                border-radius: 6px;
+            }
+            QTableWidget QScrollBar::handle:vertical {
+                background-color: #3a4a5a;
+                border-radius: 6px;
+                min-height: 40px;
+            }
+            QTableWidget QScrollBar::handle:vertical:hover {
+                background-color: #4a5a6a;
+            }
+        """)
         self.init_ui()
 
     def init_ui(self):
@@ -571,9 +715,10 @@ class OrdersTable(QTableWidget):
         self.setColumnWidth(4, 90)   # 金额
         
         self.setEditTriggers(QTableWidget.NoEditTriggers)
-        self.setAlternatingRowColors(True)
+        self.setAlternatingRowColors(False)
         self.setSelectionBehavior(QTableWidget.SelectRows)
         self.verticalHeader().setVisible(False)
+        self.setShowGrid(False)
         self.setContextMenuPolicy(Qt.CustomContextMenu)
         self.customContextMenuRequested.connect(self.show_context_menu)
 
@@ -624,6 +769,51 @@ class ProductsTable(QTableWidget):
     """商品明细表格"""
     def __init__(self):
         super().__init__()
+        self.setStyleSheet("""
+            QTableWidget {
+                background-color: #0f1923;
+                color: #e0e6ed;
+                gridline-color: #3a4a5a;
+                border: none;
+            }
+            QTableWidget::item {
+                background-color: #0f1923;
+                color: #e0e6ed;
+                padding: 4px 8px;
+                border-bottom: 1px solid #3a4a5a;
+            }
+            QTableWidget::item:selected {
+                background-color: #2a3643;
+                color: #00d4ff;
+            }
+            QTableWidget::item:hover {
+                background-color: #1a2633;
+            }
+            QHeaderView::section {
+                background-color: #00d4ff;
+                color: #0f1923;
+                padding: 8px 12px;
+                font-weight: bold;
+                border: none;
+                border-bottom: 1px solid #0099cc;
+            }
+            QHeaderView::section:hover {
+                background-color: #00b8e6;
+            }
+            QTableWidget QScrollBar:vertical {
+                background-color: #1a2633;
+                width: 12px;
+                border-radius: 6px;
+            }
+            QTableWidget QScrollBar::handle:vertical {
+                background-color: #3a4a5a;
+                border-radius: 6px;
+                min-height: 40px;
+            }
+            QTableWidget QScrollBar::handle:vertical:hover {
+                background-color: #4a5a6a;
+            }
+        """)
         self.init_ui()
 
     def init_ui(self):
@@ -644,9 +834,10 @@ class ProductsTable(QTableWidget):
         self.setColumnWidth(5, 80)
 
         self.setEditTriggers(QTableWidget.NoEditTriggers)
-        self.setAlternatingRowColors(True)
+        self.setAlternatingRowColors(False)
         self.setSelectionBehavior(QTableWidget.SelectRows)
         self.verticalHeader().setVisible(False)
+        self.setShowGrid(False)
 
     def update_data(self, orders):
         self.setRowCount(0)
@@ -696,19 +887,6 @@ class DashboardView(QWidget):
         self.main_layout.setContentsMargins(15, 15, 15, 15)
         self.main_layout.setSpacing(12)
         
-        # 标题
-        self.title_label = QLabel("🛒 购物订单数据看板")
-        self.title_label.setStyleSheet("""
-            QLabel {
-                font-size: 22px;
-                font-weight: bold;
-                color: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #00d4ff, stop:1 #7c3aed);
-                padding: 8px 0;
-            }
-        """)
-        self.title_label.setAlignment(Qt.AlignCenter)
-        self.main_layout.addWidget(self.title_label)
-        
         # 日期范围
         self.date_range_label = QLabel("数据时间范围：N/A")
         self.date_range_label.setStyleSheet("color: #8892a4; font-size: 13px;")
@@ -717,9 +895,8 @@ class DashboardView(QWidget):
         
         # 创建滚动区域来容纳所有内容
         scroll = QScrollArea()
-        scroll.setWidgetResizable(False)  # 禁止内容自适应，保持原始大小
-        scroll.setMinimumHeight(900)
-        # 启用水平和垂直滚动条
+        scroll.setWidgetResizable(True)  # 允许内容自适应
+        # 启用水平和垂直滚动条（仅在内容超过可视区时）
         scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
         scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
         scroll.setStyleSheet("""
@@ -806,7 +983,7 @@ class DashboardView(QWidget):
         row1_layout.setSpacing(12)
 
         # 趋势图
-        self.trend_chart_view = self.create_chart_view("月度消费趋势", 480)
+        self.trend_chart_view = self.create_chart_view("月度消费趋势", 260)
         self.trend_chart_view.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Minimum)
         row1_layout.addWidget(self.trend_chart_view)
         charts_layout.addWidget(row1)
@@ -819,7 +996,7 @@ class DashboardView(QWidget):
         row2_layout.setSpacing(12)
 
         # 柱状图
-        self.bar_chart_view = self.create_chart_view("月度订单数量 & 平均单价", 480)
+        self.bar_chart_view = self.create_chart_view("月度订单数量 & 平均单价", 260)
         self.bar_chart_view.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Minimum)
         row2_layout.addWidget(self.bar_chart_view)
         charts_layout.addWidget(row2)
@@ -832,7 +1009,7 @@ class DashboardView(QWidget):
         row3_layout.setSpacing(12)
 
         # 状态饼图
-        self.status_chart_view = self.create_chart_view("订单状态分布", 400)
+        self.status_chart_view = self.create_chart_view("订单状态分布", 240)
         self.status_chart_view.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Minimum)
         row3_layout.addWidget(self.status_chart_view)
         charts_layout.addWidget(row3)
@@ -893,46 +1070,56 @@ class DashboardView(QWidget):
         
     def update_dashboard(self, summary, date_range=None):
         """更新看板数据"""
-        monthly = summary.get('monthly_summary', {})
-        months = sorted(monthly.keys())
-        
-        # 如果提供了用户输入的日期范围，则显示该范围
-        if date_range:
-            self.date_range_label.setText(f"数据时间范围：{date_range}")
-        else:
-            # 否则显示数据中的月份范围
-            date_range_str = f"{months[0] if months else 'N/A'} - {months[-1] if months else 'N/A'}"
-            self.date_range_label.setText(f"数据时间范围：{date_range_str}")
-        
-        # 更新统计卡片
-        self.update_stats_cards(summary)
-        
-        # 更新图表
-        self.update_trend_chart(monthly, months)
-        self.update_status_chart(summary)
-        self.update_bar_chart(monthly, months)
+        import traceback
+        try:
+            monthly = summary.get('monthly_summary', {})
+            months = sorted(monthly.keys())
+            
+            # 如果提供了用户输入的日期范围，则显示该范围
+            if date_range:
+                self.date_range_label.setText(f"数据时间范围：{date_range}")
+            else:
+                # 否则显示数据中的月份范围
+                date_range_str = f"{months[0] if months else 'N/A'} - {months[-1] if months else 'N/A'}"
+                self.date_range_label.setText(f"数据时间范围：{date_range_str}")
+            
+            # 更新统计卡片
+            self.update_stats_cards(summary)
+            
+            # 更新图表
+            self.update_trend_chart(monthly, months)
+            self.update_status_chart(summary)
+            self.update_bar_chart(monthly, months)
+        except Exception as e:
+            print(f"[ERROR] 更新看板失败: {e}")
+            traceback.print_exc()
         
     def update_stats_cards(self, summary):
         """更新统计卡片"""
-        # 清除旧的卡片
-        layout = self.stats_widget.layout()
-        if layout:
-            while layout.count():
-                child = layout.takeAt(0)
-                if child.widget():
-                    child.widget().deleteLater()
-        
-        cards_data = [
-            ("总订单数", str(summary.get('total_orders', 0)), "#00d4ff"),
-            ("已完成金额", f"¥{summary.get('completed_amount', 0):,.0f}", "#00e676"),
-            ("退款金额", f"¥{abs(summary.get('refund_amount', 0)):,.0f}", "#ff5252"),
-            ("实际净消费", f"¥{summary.get('net_amount', 0):,.0f}", "#b388ff"),
-            ("亲友卡消费", f"¥{summary.get('qyk_completed_amount', 0):,.0f}", "#ffab40"),
-        ]
-        
-        for label, value, color in cards_data:
-            card = self.create_stat_card(label, value, color)
-            layout.addWidget(card)
+        import traceback
+        try:
+            # 清除旧的卡片
+            layout = self.stats_widget.layout()
+            if layout:
+                while layout.count():
+                    child = layout.takeAt(0)
+                    if child.widget():
+                        child.widget().deleteLater()
+            
+            cards_data = [
+                ("总订单数", str(summary.get('total_orders', 0)), "#00d4ff"),
+                ("已完成金额", f"¥{summary.get('completed_amount', 0):,.0f}", "#00e676"),
+                ("退款金额", f"¥{abs(summary.get('refund_amount', 0)):,.0f}", "#ff5252"),
+                ("实际净消费", f"¥{summary.get('net_amount', 0):,.0f}", "#b388ff"),
+                ("亲友卡消费", f"¥{summary.get('qyk_completed_amount', 0):,.0f}", "#ffab40"),
+            ]
+            
+            for label, value, color in cards_data:
+                card = self.create_stat_card(label, value, color)
+                layout.addWidget(card)
+        except Exception as e:
+            print(f"[ERROR] 更新统计卡片失败: {e}")
+            traceback.print_exc()
             
     def create_stat_card(self, label, value, color):
         """创建统计卡片 - 专业样式"""
@@ -1027,6 +1214,8 @@ class DashboardView(QWidget):
                 if series_name == "已完成金额":
                     info += f"已完成金额: ¥{data['completed_amount']:,.2f}\n"
                     info += f"净消费: ¥{data['net_amount']:,.2f}"
+                elif series_name == "净消费":
+                    info += f"净消费: ¥{data['net_amount']:,.2f}"
                 elif series_name == "退款金额":
                     info += f"退款金额: ¥{abs(data['refund_amount']):,.2f}"
                 QToolTip.showText(QCursor.pos(), info)
@@ -1060,237 +1249,258 @@ class DashboardView(QWidget):
                 QToolTip.showText(QCursor.pos(), info)
 
     def update_trend_chart(self, monthly, months):
-        """更新趋势图 - 使用双Y轴，专业样式"""
-        chart_view = self.trend_chart_view.findChild(QChartView)
-        if not chart_view:
-            return
+        """更新趋势图 - 使用双Y轴"""
+        import traceback
+        try:
+            chart_view = self.trend_chart_view.findChild(QChartView)
+            if not chart_view:
+                return
 
-        chart = QChart()
-        chart.setBackgroundVisible(False)
-        chart.setMargins(QMargins(0, 0, 0, 25))
-        chart.legend().setVisible(True)
-        chart.legend().setAlignment(Qt.AlignTop)
-        chart.legend().setLabelColor(QColor("#8892a4"))
-        chart.legend().setBorderColor(QColor("#3a4a5a"))
-        chart.setLocalizeNumbers(False)
+            chart = QChart()
+            chart.setBackgroundVisible(False)
+            chart.setMargins(QMargins(0, 0, 0, 25))
+            chart.legend().setVisible(True)
+            chart.legend().setAlignment(Qt.AlignTop)
+            chart.legend().setLabelColor(QColor("#8892a4"))
+            chart.legend().setBorderColor(QColor("#3a4a5a"))
+            chart.setLocalizeNumbers(False)
 
-        # 处理空数据
-        if not months:
+            # 处理空数据
+            if not months:
+                chart_view.setChart(chart)
+                return
+
+            # 已完成金额 - 左轴（大量级）
+            completed_series = QLineSeries()
+            completed_series.setName("已完成金额")
+            completed_series.setColor(QColor("#00e676"))
+            completed_series.setPen(QPen(QColor("#00e676"), 2.5))
+            completed_series.setPointsVisible(True)
+            completed_series.hovered.connect(
+                lambda p, s, n="已完成金额": self._show_trend_tooltip(p, s, n, monthly, months)
+            )
+
+            # 净消费 - 左轴（大量级）
+            net_series = QLineSeries()
+            net_series.setName("净消费")
+            net_series.setColor(QColor("#00d4ff"))
+            net_series.setPen(QPen(QColor("#00d4ff"), 2.5))
+            net_series.setPointsVisible(True)
+            net_series.hovered.connect(
+                lambda p, s, n="净消费": self._show_trend_tooltip(p, s, n, monthly, months)
+            )
+
+            # 退款金额 - 右轴（小量级）
+            refund_series = QLineSeries()
+            refund_series.setName("退款金额")
+            refund_series.setColor(QColor("#ff5252"))
+            refund_series.setPen(QPen(QColor("#ff5252"), 2.5))
+            refund_series.setPointsVisible(True)
+            refund_series.hovered.connect(
+                lambda p, s, n="退款金额": self._show_trend_tooltip(p, s, n, monthly, months)
+            )
+
+            for idx, month in enumerate(months):
+                data = monthly[month]
+                completed_series.append(idx, data['completed_amount'])
+                net_series.append(idx, data['net_amount'])
+                refund_series.append(idx, abs(data['refund_amount']))
+
+            chart.addSeries(completed_series)
+            chart.addSeries(net_series)
+            chart.addSeries(refund_series)
+
+            # X轴
+            axis_x = QBarCategoryAxis()
+            axis_x.append(months)
+            axis_x.setLabelsColor(QColor("#8892a4"))
+            axis_x.setLabelsAngle(-45)
+            axis_x.setLabelsFont(QFont("Heiti SC", 9))
+            axis_x.setGridLineVisible(False)
+            chart.addAxis(axis_x, Qt.AlignBottom)
+
+            # 左Y轴 - 金额（大量级）
+            max_amount = max(
+                max([monthly[m]['completed_amount'] for m in months]),
+                max([abs(monthly[m]['net_amount']) for m in months])
+            )
+            top = max_amount * 1.2 if max_amount > 0 else 1000
+            axis_y_left = self._make_yen_axis(
+                top, QColor("#8892a4"), QFont("Heiti SC", 10)
+            )
+            chart.addAxis(axis_y_left, Qt.AlignLeft)
+
+            # 右Y轴 - 退款金额（小量级）
+            max_refund = max([abs(monthly[m]['refund_amount']) for m in months])
+            top_r = max_refund * 1.5 if max_refund > 0 else 100
+            axis_y_right = self._make_yen_axis(
+                top_r, QColor("#ff5252"), QFont("Heiti SC", 10)
+            )
+            chart.addAxis(axis_y_right, Qt.AlignRight)
+
+            # 绑定轴
+            completed_series.attachAxis(axis_x)
+            completed_series.attachAxis(axis_y_left)
+            net_series.attachAxis(axis_x)
+            net_series.attachAxis(axis_y_left)
+            refund_series.attachAxis(axis_x)
+            refund_series.attachAxis(axis_y_right)
+
             chart_view.setChart(chart)
-            return
-
-        # 已完成金额 - 左轴（大量级）
-        completed_series = QLineSeries()
-        completed_series.setName("已完成金额")
-        completed_series.setColor(QColor("#00e676"))
-        completed_series.setPen(QPen(QColor("#00e676"), 2.5))
-        completed_series.setPointsVisible(True)
-        completed_series.hovered.connect(
-            lambda p, s, n="已完成金额": self._show_trend_tooltip(p, s, n, monthly, months)
-        )
-
-        # 净消费 - 左轴（大量级）
-        net_series = QLineSeries()
-        net_series.setName("净消费")
-        net_series.setColor(QColor("#00d4ff"))
-        net_series.setPen(QPen(QColor("#00d4ff"), 2.5))
-        net_series.setPointsVisible(True)
-        net_series.hovered.connect(
-            lambda p, s, n="已完成金额": self._show_trend_tooltip(p, s, n, monthly, months)
-        )
-
-        # 退款金额 - 右轴（小量级）
-        refund_series = QLineSeries()
-        refund_series.setName("退款金额")
-        refund_series.setColor(QColor("#ff5252"))
-        refund_series.setPen(QPen(QColor("#ff5252"), 2.5))
-        refund_series.setPointsVisible(True)
-        refund_series.hovered.connect(
-            lambda p, s, n="退款金额": self._show_trend_tooltip(p, s, n, monthly, months)
-        )
-
-        for month in months:
-            data = monthly[month]
-            idx = months.index(month)
-            completed_series.append(idx, data['completed_amount'])
-            net_series.append(idx, data['net_amount'])
-            refund_series.append(idx, abs(data['refund_amount']))
-
-        chart.addSeries(completed_series)
-        chart.addSeries(net_series)
-        chart.addSeries(refund_series)
-
-        # X轴
-        axis_x = QBarCategoryAxis()
-        axis_x.append(months)
-        axis_x.setLabelsColor(QColor("#8892a4"))
-        axis_x.setLabelsAngle(-45)
-        axis_x.setLabelsFont(QFont("Heiti SC", 9))
-        axis_x.setGridLineVisible(False)
-        chart.addAxis(axis_x, Qt.AlignBottom)
-
-        # 左Y轴 - 金额（大量级）
-        max_amount = max(
-            max([monthly[m]['completed_amount'] for m in months]) if months else 0,
-            max([abs(monthly[m]['net_amount']) for m in months]) if months else 0
-        )
-        top = max_amount * 1.2 if max_amount > 0 else 1000
-        axis_y_left = self._make_yen_axis(
-            top, QColor("#8892a4"), QFont("Heiti SC", 10)
-        )
-        chart.addAxis(axis_y_left, Qt.AlignLeft)
-
-        # 右Y轴 - 退款金额（小量级）
-        max_refund = max([abs(monthly[m]['refund_amount']) for m in months]) if months else 0
-        top_r = max_refund * 1.5 if max_refund > 0 else 100
-        axis_y_right = self._make_yen_axis(
-            top_r, QColor("#ff5252"), QFont("Heiti SC", 10)
-        )
-        chart.addAxis(axis_y_right, Qt.AlignRight)
-
-        # 绑定轴
-        completed_series.attachAxis(axis_x)
-        completed_series.attachAxis(axis_y_left)
-        net_series.attachAxis(axis_x)
-        net_series.attachAxis(axis_y_left)
-        refund_series.attachAxis(axis_x)
-        refund_series.attachAxis(axis_y_right)
-
-        chart_view.setChart(chart)
+        except Exception as e:
+            print(f"[ERROR] 更新趋势图失败: {e}")
+            traceback.print_exc()
         
     def update_status_chart(self, summary):
         """更新状态饼图 - 专业样式"""
-        chart_view = self.status_chart_view.findChild(QChartView)
-        if not chart_view:
-            return
+        import traceback
+        try:
+            chart_view = self.status_chart_view.findChild(QChartView)
+            if not chart_view:
+                return
 
-        chart = QChart()
-        chart.setBackgroundVisible(False)
-        chart.legend().setVisible(True)
-        chart.legend().setAlignment(Qt.AlignRight)
-        chart.legend().setLabelColor(QColor("#8892a4"))
-        chart.legend().setBorderColor(QColor("#3a4a5a"))
-        chart.setLocalizeNumbers(False)
+            chart = QChart()
+            chart.setBackgroundVisible(False)
+            chart.legend().setVisible(True)
+            chart.legend().setAlignment(Qt.AlignRight)
+            chart.legend().setLabelColor(QColor("#8892a4"))
+            chart.legend().setBorderColor(QColor("#3a4a5a"))
+            chart.setLocalizeNumbers(False)
 
-        series = QPieSeries()
-        series.setHoleSize(0.45)
-        series.setPieStartAngle(90)
-        series.setPieEndAngle(450)
+            series = QPieSeries()
+            series.setHoleSize(0.45)
+            series.setPieStartAngle(90)
+            series.setPieEndAngle(450)
 
-        completed = summary.get('completed_count', 0)
-        refund = summary.get('refund_count', 0)
+            completed = summary.get('completed_count', 0)
+            refund = summary.get('refund_count', 0)
 
-        slice1 = QPieSlice("已完成", completed)
-        slice1.setColor(QColor("#00e676"))
-        slice1.setBorderColor(QColor("#00e676"))
-        slice1.setBorderWidth(2)
+            slice1 = QPieSlice("已完成", completed)
+            slice1.setColor(QColor("#00e676"))
+            slice1.setBorderColor(QColor("#00e676"))
+            slice1.setBorderWidth(2)
 
-        slice2 = QPieSlice("已退款", refund)
-        slice2.setColor(QColor("#ff5252"))
-        slice2.setBorderColor(QColor("#ff5252"))
-        slice2.setBorderWidth(2)
+            slice2 = QPieSlice("已退款", refund)
+            slice2.setColor(QColor("#ff5252"))
+            slice2.setBorderColor(QColor("#ff5252"))
+            slice2.setBorderWidth(2)
 
-        series.append(slice1)
-        series.append(slice2)
+            series.append(slice1)
+            series.append(slice2)
 
-        chart.addSeries(series)
-        chart_view.setChart(chart)
+            chart.addSeries(series)
+            chart_view.setChart(chart)
+        except Exception as e:
+            print(f"[ERROR] 更新状态饼图失败: {e}")
+            traceback.print_exc()
         
     def update_bar_chart(self, monthly, months):
         """更新柱状图 - 使用双Y轴，专业样式"""
-        chart_view = self.bar_chart_view.findChild(QChartView)
-        if not chart_view:
-            return
+        import traceback
+        try:
+            chart_view = self.bar_chart_view.findChild(QChartView)
+            if not chart_view:
+                return
 
-        chart = QChart()
-        chart.setBackgroundVisible(False)
-        chart.setMargins(QMargins(0, 0, 0, 25))
-        chart.legend().setVisible(True)
-        chart.legend().setAlignment(Qt.AlignTop)
-        chart.legend().setLabelColor(QColor("#8892a4"))
-        chart.legend().setBorderColor(QColor("#3a4a5a"))
-        chart.setLocalizeNumbers(False)
+            chart = QChart()
+            chart.setBackgroundVisible(False)
+            chart.setMargins(QMargins(0, 0, 0, 25))
+            chart.legend().setVisible(True)
+            chart.legend().setAlignment(Qt.AlignTop)
+            chart.legend().setLabelColor(QColor("#8892a4"))
+            chart.legend().setBorderColor(QColor("#3a4a5a"))
+            chart.setLocalizeNumbers(False)
 
-        # 处理空数据
-        if not months:
+            # 处理空数据
+            if not months:
+                chart_view.setChart(chart)
+                return
+
+            # 订单数柱状图 - 左轴（大量级）
+            bar_set = QBarSet("订单数")
+            counts = [monthly[m]['count'] for m in months]
+            bar_set.append(counts)
+            bar_set.setColor(QColor("#00d4ff"))
+            bar_set.setBorderColor(QColor("#00d4ff"))
+
+            bar_series = QBarSeries()
+            bar_series.append(bar_set)
+            bar_series.setBarWidth(0.7)
+            bar_series.hovered.connect(
+                lambda s, i, b: self._show_bar_tooltip(s, i, b, monthly, months)
+            )
+            chart.addSeries(bar_series)
+
+            # 平均单价折线图 - 右轴（小量级）
+            line_series = QLineSeries()
+            line_series.setName("平均单价")
+            line_series.setColor(QColor("#ffab40"))
+            line_series.setPen(QPen(QColor("#ffab40"), 2.5))
+            line_series.setPointsVisible(True)
+            line_series.hovered.connect(
+                lambda p, s: self._show_bar_avg_tooltip(p, s, monthly, months)
+            )
+
+            for i, month in enumerate(months):
+                data = monthly[month]
+                avg = data['completed_amount'] / data['completed'] if data['completed'] > 0 else 0
+                line_series.append(i, avg)
+
+            chart.addSeries(line_series)
+
+            # X轴
+            axis_x = QBarCategoryAxis()
+            axis_x.append(months)
+            axis_x.setLabelsColor(QColor("#8892a4"))
+            axis_x.setLabelsAngle(-45)
+            axis_x.setLabelsFont(QFont("Heiti SC", 9))
+            axis_x.setGridLineVisible(False)
+            chart.addAxis(axis_x, Qt.AlignBottom)
+
+            # 左Y轴 - 订单数（大量级）
+            max_count = max(counts) if counts else 10
+            top_count = self._nice_round(max_count * 1.3) if max_count > 0 else 10
+            axis_y_left = QValueAxis()
+            axis_y_left.setLabelsColor(QColor("#00d4ff"))
+            axis_y_left.setLabelFormat("%d")
+            axis_y_left.setRange(0, top_count)
+            axis_y_left.setGridLineVisible(False)
+            axis_y_left.setMinorTickCount(0)
+            chart.addAxis(axis_y_left, Qt.AlignLeft)
+
+            # 右Y轴 - 平均单价（小量级）
+            max_avg = max([monthly[m]['completed_amount'] / monthly[m]['completed'] if monthly[m]['completed'] > 0 else 0 for m in months]) if months else 500
+            top_avg = max_avg * 1.3 if max_avg > 0 else 500
+            axis_y_right = self._make_yen_axis(
+                top_avg, QColor("#ffab40"), QFont("Heiti SC", 10)
+            )
+            chart.addAxis(axis_y_right, Qt.AlignRight)
+
+            # 绑定轴
+            bar_series.attachAxis(axis_x)
+            bar_series.attachAxis(axis_y_left)
+            line_series.attachAxis(axis_x)
+            line_series.attachAxis(axis_y_right)
+
             chart_view.setChart(chart)
-            return
-
-        # 订单数柱状图 - 左轴（大量级）
-        bar_set = QBarSet("订单数")
-        counts = [monthly[m]['count'] for m in months]
-        bar_set.append(counts)
-        bar_set.setColor(QColor("#00d4ff"))
-        bar_set.setBorderColor(QColor("#00d4ff"))
-
-        bar_series = QBarSeries()
-        bar_series.append(bar_set)
-        bar_series.setBarWidth(0.7)
-        bar_series.hovered.connect(
-            lambda s, i, b: self._show_bar_tooltip(s, i, b, monthly, months)
-        )
-        chart.addSeries(bar_series)
-
-        # 平均单价折线图 - 右轴（小量级）
-        line_series = QLineSeries()
-        line_series.setName("平均单价")
-        line_series.setColor(QColor("#ffab40"))
-        line_series.setPen(QPen(QColor("#ffab40"), 2.5))
-        line_series.setPointsVisible(True)
-        line_series.hovered.connect(
-            lambda p, s: self._show_bar_avg_tooltip(p, s, monthly, months)
-        )
-
-        for i, month in enumerate(months):
-            data = monthly[month]
-            avg = data['completed_amount'] / data['completed'] if data['completed'] > 0 else 0
-            line_series.append(i, avg)
-
-        chart.addSeries(line_series)
-
-        # X轴
-        axis_x = QBarCategoryAxis()
-        axis_x.append(months)
-        axis_x.setLabelsColor(QColor("#8892a4"))
-        axis_x.setLabelsAngle(-45)
-        axis_x.setLabelsFont(QFont("Heiti SC", 9))
-        axis_x.setGridLineVisible(False)
-        chart.addAxis(axis_x, Qt.AlignBottom)
-
-        # 左Y轴 - 订单数（大量级）
-        max_count = max(counts) if counts else 10
-        top_count = self._nice_round(max_count * 1.3) if max_count > 0 else 10
-        axis_y_left = QValueAxis()
-        axis_y_left.setLabelsColor(QColor("#00d4ff"))
-        axis_y_left.setLabelFormat("%d")
-        axis_y_left.setRange(0, top_count)
-        axis_y_left.setGridLineVisible(False)
-        axis_y_left.setMinorTickCount(0)
-        chart.addAxis(axis_y_left, Qt.AlignLeft)
-
-        # 右Y轴 - 平均单价（小量级）
-        max_avg = max([monthly[m]['completed_amount'] / monthly[m]['completed'] if monthly[m]['completed'] > 0 else 0 for m in months]) if months else 500
-        top_avg = max_avg * 1.3 if max_avg > 0 else 500
-        axis_y_right = self._make_yen_axis(
-            top_avg, QColor("#ffab40"), QFont("Heiti SC", 10)
-        )
-        chart.addAxis(axis_y_right, Qt.AlignRight)
-
-        # 绑定轴
-        bar_series.attachAxis(axis_x)
-        bar_series.attachAxis(axis_y_left)
-        line_series.attachAxis(axis_x)
-        line_series.attachAxis(axis_y_right)
-
-        chart_view.setChart(chart)
+        except Exception as e:
+            print(f"[ERROR] 更新柱状图失败: {e}")
+            traceback.print_exc()
 
 
 class MainWindow(QMainWindow):
     """主窗口"""
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("视频订单提取分析系统")
+        self.setWindowTitle("订单分析系统")
         self.setGeometry(100, 100, 1400, 900)
+        
+        # 设置窗口样式 - 让标题栏背景与应用主题协调
+        self.setStyleSheet("""
+            QMainWindow {
+                background-color: #0f1923;
+            }
+        """)
         
         self.orders = []
         self.summary = None
@@ -1301,9 +1511,15 @@ class MainWindow(QMainWindow):
         self.init_ui()
 
     def init_ui(self):
+        # 创建主容器
         central_widget = QWidget()
+        central_widget.setStyleSheet("background-color: #0f1923;")
         self.setCentralWidget(central_widget)
+        
+        # 主布局 - 水平布局（左侧面板 + 右侧面板）
         main_layout = QHBoxLayout(central_widget)
+        main_layout.setSpacing(0)
+        main_layout.setContentsMargins(0, 0, 0, 0)
 
         # 左侧面板 - 添加滚动区域
         left_scroll = QScrollArea()
@@ -1316,17 +1532,17 @@ class MainWindow(QMainWindow):
                 background-color: transparent;
             }
             QScrollBar:vertical {
-                background-color: #f0f0f0;
-                width: 10px;
-                border-radius: 5px;
+                background-color: #1a2633;
+                width: 12px;
+                border-radius: 6px;
             }
             QScrollBar::handle:vertical {
-                background-color: #c0c0c0;
-                border-radius: 5px;
-                min-height: 30px;
+                background-color: #3a4a5a;
+                border-radius: 6px;
+                min-height: 40px;
             }
             QScrollBar::handle:vertical:hover {
-                background-color: #a0a0a0;
+                background-color: #4a5a6a;
             }
             QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
                 height: 0px;
@@ -1334,13 +1550,123 @@ class MainWindow(QMainWindow):
         """)
         
         left_panel = QWidget()
-        left_panel.setMinimumWidth(320)  # 设置最小宽度，小于滚动区域宽度
+        left_panel.setMinimumWidth(320)
+        left_panel.setStyleSheet("""
+            background-color: #1a2633;
+            color: #e0e6ed;
+        """)
         left_layout = QVBoxLayout(left_panel)
         left_layout.setSpacing(10)
         left_layout.setContentsMargins(10, 10, 10, 10)
 
+        group_style = """
+            QGroupBox {
+                background-color: #0f1923;
+                color: #e0e6ed;
+                border: 1px solid #3a4a5a;
+                border-radius: 8px;
+                margin-top: 10px;
+                padding: 8px 4px 4px 4px;
+                font-weight: bold;
+            }
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                subcontrol-position: top left;
+                left: 10px;
+                padding: 0 4px;
+                color: #00d4ff;
+            }
+            QLineEdit {
+                background-color: #1a2633;
+                color: #e0e6ed;
+                border: 1px solid #3a4a5a;
+                border-radius: 4px;
+                padding: 4px 6px;
+                selection-background-color: #00d4ff;
+            }
+            QLineEdit:focus {
+                border: 1px solid #00d4ff;
+            }
+            QPushButton {
+                background-color: #1a2633;
+                color: #e0e6ed;
+                border: 1px solid #3a4a5a;
+                border-radius: 6px;
+                padding: 6px 12px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #2a3643;
+                border-color: #00d4ff;
+                color: #00d4ff;
+            }
+            QPushButton:pressed {
+                background-color: #3a4a5a;
+            }
+            QCheckBox {
+                color: #e0e6ed;
+                spacing: 6px;
+            }
+            QCheckBox::indicator {
+                width: 16px;
+                height: 16px;
+                border: 1px solid #3a4a5a;
+                border-radius: 3px;
+                background-color: #1a2633;
+            }
+            QCheckBox::indicator:checked {
+                background-color: #00d4ff;
+                border-color: #00d4ff;
+            }
+            QCheckBox::indicator:hover {
+                border-color: #00d4ff;
+            }
+            QRadioButton {
+                color: #e0e6ed;
+                spacing: 6px;
+            }
+            QRadioButton::indicator {
+                width: 16px;
+                height: 16px;
+                border: 1px solid #3a4a5a;
+                border-radius: 8px;
+                background-color: #1a2633;
+            }
+            QRadioButton::indicator:checked {
+                background-color: #00d4ff;
+                border-color: #00d4ff;
+            }
+            QRadioButton::indicator:hover {
+                border-color: #00d4ff;
+            }
+            QComboBox {
+                background-color: #1a2633;
+                color: #e0e6ed;
+                border: 1px solid #3a4a5a;
+                border-radius: 4px;
+                padding: 4px 8px;
+            }
+            QComboBox:hover {
+                border: 1px solid #00d4ff;
+            }
+            QComboBox::drop-down {
+                border: none;
+                width: 20px;
+            }
+            QComboBox::down-arrow {
+                image: none;
+                border-left: 5px solid transparent;
+                border-right: 5px solid transparent;
+                border-top: 6px solid #8892a4;
+            }
+            QLabel {
+                color: #8892a4;
+            }
+        """
+
         # 导入数据文件
         import_group = QGroupBox("导入数据文件")
+        import_group.setStyleSheet(group_style)
         import_layout = QVBoxLayout()
         import_layout.setSpacing(8)
         
@@ -1379,6 +1705,7 @@ class MainWindow(QMainWindow):
 
         # 截屏导入
         screenshot_group = QGroupBox("截屏导入")
+        screenshot_group.setStyleSheet(group_style)
         screenshot_layout = QVBoxLayout()
         screenshot_layout.setSpacing(8)
 
@@ -1416,6 +1743,7 @@ class MainWindow(QMainWindow):
 
         # 文件选择
         file_group = QGroupBox("视频文件")
+        file_group.setStyleSheet(group_style)
         file_layout = QHBoxLayout()
         file_layout.setSpacing(8)
         self.file_path = QLineEdit()
@@ -1431,6 +1759,7 @@ class MainWindow(QMainWindow):
 
         # 拆帧频率
         fps_group = QGroupBox("拆帧设置")
+        fps_group.setStyleSheet(group_style)
         fps_layout = QHBoxLayout()
         fps_layout.setSpacing(8)
         self.fps_combo = QComboBox()
@@ -1444,16 +1773,50 @@ class MainWindow(QMainWindow):
         # 处理按钮和进度
         self.process_btn = QPushButton("开始提取")
         self.process_btn.setMinimumHeight(40)
+        self.process_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #00d4ff;
+                color: #0f1923;
+                border: none;
+                border-radius: 8px;
+                font-weight: bold;
+                font-size: 14px;
+            }
+            QPushButton:hover {
+                background-color: #00b8e6;
+            }
+            QPushButton:pressed {
+                background-color: #0099cc;
+            }
+            QPushButton:disabled {
+                background-color: #3a4a5a;
+                color: #8892a4;
+            }
+        """)
         self.process_btn.clicked.connect(self.start_processing)
         left_layout.addWidget(self.process_btn)
         
         self.progress_bar = QProgressBar()
         self.progress_bar.setRange(0, 100)
+        self.progress_bar.setStyleSheet("""
+            QProgressBar {
+                background-color: #0f1923;
+                color: #e0e6ed;
+                border: 1px solid #3a4a5a;
+                border-radius: 4px;
+                text-align: center;
+            }
+            QProgressBar::chunk {
+                background-color: #00d4ff;
+                border-radius: 3px;
+            }
+        """)
         left_layout.addWidget(self.progress_bar)
         
         self.status_label = QLabel("就绪")
         self.status_label.setAlignment(Qt.AlignCenter)
         self.status_label.setWordWrap(True)
+        self.status_label.setStyleSheet("color: #8892a4; background-color: transparent;")
         left_layout.addWidget(self.status_label)
 
         # 筛选面板
@@ -1472,9 +1835,20 @@ class MainWindow(QMainWindow):
 
         # 右侧面板
         right_panel = QSplitter(Qt.Vertical)
+        right_panel.setStyleSheet("""
+            QSplitter {
+                background-color: #0f1923;
+            }
+            QSplitter::handle {
+                background-color: #3a4a5a;
+                width: 1px;
+                height: 1px;
+            }
+        """)
         
         # 表格标签页
         table_tab = QWidget()
+        table_tab.setStyleSheet("background-color: #0f1923;")
         table_layout = QVBoxLayout(table_tab)
         self.orders_table = OrdersTable()
         self.orders_table.delete_requested.connect(self._on_delete_order)
@@ -1482,6 +1856,7 @@ class MainWindow(QMainWindow):
         
         # 商品明细标签页
         product_tab = QWidget()
+        product_tab.setStyleSheet("background-color: #0f1923;")
         product_layout = QVBoxLayout(product_tab)
         self.products_table = ProductsTable()
         product_layout.addWidget(self.products_table)
@@ -1496,24 +1871,30 @@ class MainWindow(QMainWindow):
 
         # 标签页
         self.tab_widget = QTabWidget()
-        self.tab_widget.addTab(table_tab, "📋 订单明细")
-        self.tab_widget.addTab(product_tab, "🛍️ 商品明细")
-        self.tab_widget.addTab(chart_tab, "📊 数据分析")
+        self.tab_widget.setStyleSheet("QTabWidget::pane { background-color: #0f1923; border: none; }")
+        self.tab_widget.addTab(table_tab, "订单明细")
+        self.tab_widget.addTab(product_tab, "商品明细")
+        self.tab_widget.addTab(chart_tab, "数据看板")
         self.tab_widget.tabBar().setStyleSheet("""
             QTabBar::tab {
                 background-color: #1a2633;
                 color: #8892a4;
-                padding: 8px 16px;
-                margin-right: 2px;
+                padding: 10px 24px;
+                margin-right: 6px;
+                min-width: 80px;
+                border-radius: 8px;
+                font-weight: bold;
+                font-size: 13px;
             }
             QTabBar::tab:selected {
-                background-color: #0f1923;
-                color: #00d4ff;
+                background-color: #00d4ff;
+                color: #0f1923;
             }
             QTabBar::tab:hover {
                 background-color: #2a3643;
             }
         """)
+        self.tab_widget.currentChanged.connect(self._on_tab_changed)
         right_panel.addWidget(self.tab_widget)
 
         # 右侧面板包装在滚动区域中，实现整体纵向滚动
@@ -1550,6 +1931,10 @@ class MainWindow(QMainWindow):
         main_layout.addWidget(right_scroll, 1)
 
         self.apply_filter()
+
+        if self.orders and self.summary is not None:
+            self.summary_widget.update_summary(self.summary)
+            self.dashboard_view.update_dashboard(self.summary)
 
     def _load_from_db(self):
         try:
@@ -1610,8 +1995,30 @@ class MainWindow(QMainWindow):
             self.status_label.setText(f"保存数据失败: {str(e)}")
             traceback.print_exc()
 
+    def _on_tab_changed(self, index):
+        """Tab切换事件处理"""
+        import traceback
+        try:
+            if index == 2:
+                self.dashboard_view.update_dashboard(self.summary)
+        except Exception as e:
+            print(f"[ERROR] Tab切换失败: {e}")
+            traceback.print_exc()
+
     def closeEvent(self, event):
-        close_engine()
+        # 终止可能正在运行的线程
+        if hasattr(self, 'process_thread') and self.process_thread.isRunning():
+            self.process_thread.terminate()
+            self.process_thread.wait()
+        if hasattr(self, 'screenshot_thread') and self.screenshot_thread.isRunning():
+            self.screenshot_thread.terminate()
+            self.screenshot_thread.wait()
+        
+        try:
+            close_engine()
+        except Exception as e:
+            print(f"[INFO] 关闭数据库引擎时出错: {e}")
+        
         super().closeEvent(event)
 
     def browse_file(self):
@@ -1756,7 +2163,7 @@ class MainWindow(QMainWindow):
         
         completed = [o for o in orders if o.get('status') == '已完成']
         refunded = [o for o in orders if o.get('status') == '已退款']
-        qyk_orders = [o for o in orders if '亲友卡' in (o.get('tags', ''))]
+        qyk_orders = [o for o in orders if '亲友卡' in (o.get('tags') or '')]
         
         completed_amount = sum(float(o.get('amount', 0)) for o in completed)
         refund_amount = sum(float(o.get('amount', 0)) for o in refunded)
@@ -1897,7 +2304,7 @@ class MainWindow(QMainWindow):
 
         # 标签过滤
         if filter_params['tag'] != 'all':
-            filtered = [o for o in filtered if o.get('tags', '') in filter_params['tag']]
+            filtered = [o for o in filtered if (o.get('tags') or '') in filter_params['tag']]
 
         # 金额范围过滤
         if filter_params['amount_min'] is not None:

@@ -360,36 +360,60 @@ flowchart TD
 
 ```
 video-order-extractor/
-├── app/                              # 应用核心模块
+├── src/                              # 核心源代码
 │   ├── __init__.py
-│   ├── dao/                          # 数据访问层
+│   ├── core/                         # 核心模块
 │   │   ├── __init__.py
-│   │   ├── order_dao.py              # 订单数据访问
-│   │   ├── product_dao.py            # 商品数据访问
-│   │   ├── category_dao.py           # 分类数据访问
-│   │   └── import_log_dao.py         # 导入日志数据访问
+│   │   ├── config.py                 # 配置管理
+│   │   ├── prompts.py                # 提示词模板
+│   │   └── exceptions.py             # 自定义异常
+│   ├── video/                        # 视频处理模块
+│   │   ├── __init__.py
+│   │   ├── extractor.py              # 视频拆帧
+│   │   ├── recognizer.py             # 视觉识别
+│   │   ├── deduplicator.py           # 数据去重
+│   │   ├── aggregator.py             # 数据汇总
+│   │   └── processor.py              # 视频处理主流程
+│   ├── excel/                        # Excel生成模块
+│   │   ├── __init__.py
+│   │   └── generator.py              # Excel报表生成
+│   ├── database/                     # 数据库管理
+│   │   ├── __init__.py
+│   │   └── connection.py             # 数据库连接
 │   ├── models/                       # 数据库模型
 │   │   ├── __init__.py
-│   │   ├── base.py                   # 基础模型
 │   │   ├── order.py                  # 订单模型
 │   │   ├── product.py                # 商品模型
 │   │   ├── order_product.py          # 订单商品关联模型
 │   │   ├── category.py               # 分类模型
 │   │   └── import_log.py             # 导入日志模型
-│   ├── services/                     # 业务服务层
+│   ├── dao/                          # 数据访问层
 │   │   ├── __init__.py
-│   │   ├── order_service.py          # 订单业务服务
-│   │   ├── product_service.py        # 商品业务服务
-│   │   └── import_service.py         # 导入业务服务
-│   └── utils/                        # 工具模块
+│   │   ├── order_dao.py              # 订单数据访问
+│   │   ├── product_dao.py            # 商品数据访问
+│   │   ├── order_product_dao.py      # 订单商品关联数据访问
+│   │   ├── category_dao.py           # 分类数据访问
+│   │   └── import_log_dao.py         # 导入日志数据访问
+│   └── services/                     # 业务服务层
 │       ├── __init__.py
-│       ├── database.py               # 数据库连接管理
-│       └── data_converter.py         # 数据转换工具
+│       ├── product_service.py        # 商品业务服务
+│       └── import_service.py         # 导入业务服务
+├── gui/                              # GUI模块
+│   ├── __init__.py
+│   ├── widgets/                      # UI组件
+│   │   └── __init__.py
+│   └── threads/                      # 后台线程
+│       └── __init__.py
+├── tests/                            # 测试文件
+│   ├── unit/                         # 单元测试
+│   └── integration/                  # 集成测试
+├── scripts/                          # 启动脚本
+│   ├── run_gui.py                    # 启动GUI
+│   └── run_api.py                    # 启动API服务
 ├── docs/                             # 文档目录
 │   └── data_persistence_design.md    # 本设计文档
+├── main.py                           # API入口
 ├── gui_app.py                        # GUI主程序
-├── video_processor.py                # 视频处理模块
-├── config.py                         # 配置管理
 ├── requirements.txt                  # 依赖清单
 └── .env                              # 环境变量配置
 ```

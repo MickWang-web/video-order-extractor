@@ -10,18 +10,18 @@ from fastapi import FastAPI, UploadFile, File, Form, HTTPException
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 
-from config import HOST, PORT, UPLOAD_DIR, OUTPUT_DIR
-from video_processor import process_video
+from src.core.config import HOST, PORT, UPLOAD_DIR, OUTPUT_DIR
+from src.video.processor import process_video
 
 app = FastAPI(
-    title="视频订单提取服务",
+    title="订单分析系统",
     description="上传购物App录屏视频，自动提取订单信息并生成Excel报表",
     version="1.0.0"
 )
 
 @app.get("/")
 def root():
-    return {"message": "视频订单提取服务运行中"}
+    return {"message": "订单分析系统运行中"}
 
 # 跨域支持（如果需要前端调用）
 app.add_middleware(
@@ -120,6 +120,6 @@ async def health_check():
 
 if __name__ == "__main__":
     import uvicorn
-    print(f"启动视频订单提取服务: http://{HOST}:{PORT}")
+    print(f"启动订单分析系统: http://{HOST}:{PORT}")
     print(f"API文档: http://{HOST}:{PORT}/docs")
     uvicorn.run(app, host=HOST, port=PORT)
